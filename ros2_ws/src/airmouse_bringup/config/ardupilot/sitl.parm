@@ -1,0 +1,41 @@
+# ArduCopter SITL overrides for AirMouse (loaded after copter.parm and gazebo-iris.parm).
+# Position, velocity, height and yaw all come from FAST-LIO via MAVROS vision_pose (ExternalNav).
+
+# --- EKF3 with external navigation only ---
+AHRS_EKF_TYPE 3
+EK2_ENABLE 0
+EK3_ENABLE 1
+EK3_SRC1_POSXY 6
+EK3_SRC1_VELXY 6
+EK3_SRC1_POSZ 6
+EK3_SRC1_VELZ 6
+EK3_SRC1_YAW 6
+VISO_TYPE 1
+VISO_DELAY_MS 50
+
+# --- No GPS, no compass (indoors). On ArduPilot < 4.6 the GPS param is GPS_TYPE. ---
+GPS1_TYPE 0
+COMPASS_ENABLE 0
+COMPASS_USE 0
+COMPASS_USE2 0
+COMPASS_USE3 0
+
+# --- Gentle indoor envelope ---
+WPNAV_SPEED 70
+WPNAV_ACCEL 100
+WPNAV_SPEED_UP 50
+WPNAV_SPEED_DN 40
+WPNAV_RADIUS 20
+ANGLE_MAX 2000
+
+# --- Failsafes: always LAND, never RTL (a straight-line RTL would fly through walls) ---
+FS_EKF_ACTION 1
+FS_GCS_ENABLE 5
+BATT_FS_LOW_ACT 1
+BATT_FS_CRT_ACT 1
+FENCE_ENABLE 1
+FENCE_TYPE 3
+FENCE_ALT_MAX 2.2
+FENCE_RADIUS 20
+FENCE_ACTION 2
+FENCE_MARGIN 0.5

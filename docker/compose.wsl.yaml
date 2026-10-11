@@ -1,0 +1,15 @@
+# Windows 11 (WSL2 + WSLg) override: GUI windows + GPU-accelerated rendering for Gazebo.
+#   docker compose -f compose.yaml -f docker/compose.wsl.yaml up -d sim
+services:
+  sim:
+    devices:
+      - /dev/dxg:/dev/dxg
+    volumes:
+      - /mnt/wslg:/mnt/wslg
+      - /usr/lib/wsl:/usr/lib/wsl:ro
+    environment:
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+      - GALLIUM_DRIVER=d3d12
+      - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
+      - WAYLAND_DISPLAY=wayland-0
+      - PULSE_SERVER=/mnt/wslg/PulseServer

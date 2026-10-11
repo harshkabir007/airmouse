@@ -1,0 +1,58 @@
+# ArduCopter parameters for the real AirMouse drone. Load in Mission Planner:
+#   Config > Full Parameter List > Load from file > Write Params, then reboot.
+# Start from a tuned, flying airframe (do your normal setup/calibration first).
+
+# --- EKF3 with external navigation (FAST-LIO via MAVROS vision_pose) ---
+AHRS_EKF_TYPE 3
+EK2_ENABLE 0
+EK3_ENABLE 1
+EK3_SRC1_POSXY 6
+EK3_SRC1_VELXY 6
+EK3_SRC1_POSZ 6
+EK3_SRC1_VELZ 6
+EK3_SRC1_YAW 6
+VISO_TYPE 1
+VISO_DELAY_MS 50
+# pose_bridge already reports base_link (= FC/CG) so no sensor offset here
+VISO_POS_X 0
+VISO_POS_Y 0
+VISO_POS_Z 0
+
+# --- No GPS, no compass indoors (GPS_TYPE on ArduPilot < 4.6) ---
+GPS1_TYPE 0
+COMPASS_USE 0
+COMPASS_USE2 0
+COMPASS_USE3 0
+
+# --- Companion computer link: Pi 5 UART (GPIO14/15) <-> FC TELEM2 ---
+SERIAL2_PROTOCOL 2
+SERIAL2_BAUD 921
+
+# --- Indoor envelope ---
+WPNAV_SPEED 70
+WPNAV_ACCEL 100
+WPNAV_SPEED_UP 50
+WPNAV_SPEED_DN 40
+WPNAV_RADIUS 20
+ANGLE_MAX 2000
+LAND_SPEED 40
+
+# --- Failsafes: always LAND (never RTL) ---
+FS_EKF_ACTION 1
+FS_GCS_ENABLE 5
+FS_THR_ENABLE 3
+BATT_FS_LOW_ACT 1
+BATT_FS_CRT_ACT 1
+# Set for YOUR pack (example 4S Li-ion/LiPo):
+BATT_LOW_VOLT 14.0
+BATT_CRT_VOLT 13.4
+FENCE_ENABLE 1
+FENCE_TYPE 3
+FENCE_ALT_MAX 2.2
+FENCE_RADIUS 20
+FENCE_ACTION 2
+FENCE_MARGIN 0.5
+
+# --- Safety switches on the RC transmitter (pick your channels) ---
+RC7_OPTION 31        # motor emergency stop (kill)
+RC8_OPTION 18        # LAND

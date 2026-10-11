@@ -1,0 +1,4 @@
+# ROS Jazzy and the apt scipy/opencv are built against numpy 1.x
+numpy<2
+opencv-python<4.11
+opencv-python-headless<4.11

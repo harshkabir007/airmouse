@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirMouse GCS</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1d2128; --line: #2c323c; --text: #e6e8eb; --muted: #8b93a1;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --accent: #58a6ff; --surv: #ff4d6d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px;
+           background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  .pill { padding: 3px 10px; border-radius: 999px; background: var(--line); font-weight: 600; }
+  .pill.ok { background: #1f3d29; color: var(--ok); } .pill.warn { background: #3d3217; color: var(--warn); }
+  .pill.bad { background: #432022; color: var(--bad); }
+  .kv { color: var(--muted); } .kv b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  button { border: 0; border-radius: 6px; padding: 8px 16px; font-weight: 700; cursor: pointer; color: #fff; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  #btnStart { background: #238636; } #btnRecall { background: #9e6a03; } #btnAbort { background: #da3633; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; padding: 12px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+  #mapWrap { position: relative; height: calc(100vh - 110px); min-height: 360px; }
+  canvas { width: 100%; height: 100%; display: block; background: #2b2f36; border-radius: 6px; }
+  #video { width: 100%; border-radius: 6px; background: #000; aspect-ratio: 4/3; object-fit: contain; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .cell { font-weight: 800; color: var(--surv); font-size: 16px; }
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  #msg { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AirMouse GCS</h1>
+  <span id="state" class="pill">--</span>
+  <span class="kv">Time <b id="elapsed">00:00</b></span>
+  <span class="kv">Mode <b id="mode">--</b></span>
+  <span class="kv">Battery <b id="batt">--</b></span>
+  <span class="kv">SLAM <b id="slam">--</b></span>
+  <span class="kv">Explored <b id="explored">0</b> m²</span>
+  <span class="kv">Survivors <b id="nsurv">0</b></span>
+  <span id="msg"></span>
+  <span class="spacer"></span>
+  <button id="btnStart">START</button>
+  <button id="btnRecall">RECALL</button>
+  <button id="btnAbort">ABORT / LAND</button>
+</header>
+<main>
+  <div class="card" id="mapWrap"><canvas id="map"></canvas></div>
+  <div class="side">
+    <div class="card"><h2>Live camera</h2><img id="video" src="/video.mjpg" alt="camera feed"></div>
+    <div class="card">
+      <h2>Survivors</h2>
+      <table><thead><tr><th>#</th><th>Grid</th><th>x, y (m)</th><th>Conf</th></tr></thead>
+        <tbody id="survBody"><tr><td colspan="4" class="kv">none yet</td></tr></tbody></table>
+    </div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const canvas = $('map'), ctx = canvas.getContext('2d');
+let S = null, mapImg = null, mapSeq = -1;
+
+function colLetters(i) { let s = ''; i += 1; while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
+function fmtTime(t) { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+
+async function cmd(c) {
+  if (c === 'abort' && !confirm('ABORT: land immediately?')) return;
+  if (c === 'recall' && !confirm('RECALL: stop exploring and return to exit?')) return;
+  await fetch('/api/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: c }) });
+}
+$('btnStart').onclick = () => cmd('start');
+$('btnRecall').onclick = () => cmd('recall');
+$('btnAbort').onclick = () => cmd('abort');
+
+// View: map +x (into the maze) is up, +y is left.
+function view() {
+  const a = S.arena, w = canvas.width, h = canvas.height;
+  const ex = (S.status.exit || [0, 0]);
+  const xmin = Math.min(a.origin_x, ex[0]) - 1, xmax = a.origin_x + a.rows * a.cell_size + 1;
+  const ymin = Math.min(a.origin_y - a.cols * a.cell_size, ex[1]) - 1, ymax = Math.max(a.origin_y, ex[1]) + 1;
+  const s = Math.min(w / (ymax - ymin), h / (xmax - xmin));
+  const xc = (xmin + xmax) / 2, yc = (ymin + ymax) / 2;
+  return { s, P: (x, y) => [w / 2 - (y - yc) * s, h / 2 - (x - xc) * s] };
+}
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth * dpr, H = canvas.clientHeight * dpr;
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  ctx.clearRect(0, 0, W, H);
+  if (!S || !S.arena) return;
+  const { s, P } = view(), a = S.arena, cs = a.cell_size;
+
+  if (mapImg && S.map) {
+    const m = S.map, [x0, y0] = P(m.ox + m.nx * m.res, m.oy + m.ny * m.res);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(mapImg, x0, y0, m.ny * m.res * s, m.nx * m.res * s);
+  }
+  // survivor cells
+  for (const sv of S.survivors.filter((v) => v.confirmed)) {
+    const c = Math.floor((a.origin_y - sv.y) / cs), r = Math.floor((sv.x - a.origin_x) / cs);
+    if (c < 0 || r < 0 || c >= a.cols || r >= a.rows) continue;
+    const [px, py] = P(a.origin_x + (r + 1) * cs, a.origin_y - c * cs);
+    ctx.fillStyle = 'rgba(255,77,109,0.28)'; ctx.fillRect(px, py, cs * s, cs * s);
+  }
+  // rescue grid
+  ctx.strokeStyle = 'rgba(88,166,255,0.35)'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#8b93a1'; ctx.font = `${Math.max(10, Math.min(14, cs * s * 0.35))}px system-ui`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let c = 0; c <= a.cols; c++) {
+    const [x1, y1] = P(a.origin_x, a.origin_y - c * cs), [x2, y2] = P(a.origin_x + a.rows * cs, a.origin_y - c * cs);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    if (c < a.cols) { const [lx, ly] = P(a.origin_x - 0.35 * cs, a.origin_y - (c + 0.5) * cs); ctx.fillText(colLetters(c), lx, ly); }
+  }
+  for (let r = 0; r <= a.rows; r++) {
+    const [x1, y1] = P(a.origin_x + r * cs, a.origin_y), [x2, y2] = P(a.origin_x + r * cs, a.origin_y - a.cols * cs);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    if (r < a.rows) { const [lx, ly] = P(a.origin_x + (r + 0.5) * cs, a.origin_y + 0.35 * cs); ctx.fillText(String(r + 1), lx, ly); }
+  }
+  // exit
+  const ex = S.status.exit || [0, 0], [exx, exy] = P(ex[0], ex[1]);
+  ctx.fillStyle = '#3fb950'; ctx.fillRect(exx - 7, exy - 7, 14, 14);
+  ctx.fillText('ENTRY / EXIT', exx, exy + 18);
+  // planned path
+  if (S.path && S.path.length > 1) {
+    ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath();
+    S.path.forEach(([x, y], i) => { const [px, py] = P(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  // survivors
+  for (const sv of S.survivors) {
+    const [px, py] = P(sv.x, sv.y);
+    ctx.beginPath(); ctx.arc(px, py, sv.confirmed ? 9 : 5, 0, 2 * Math.PI);
+    ctx.fillStyle = sv.confirmed ? '#ff4d6d' : 'rgba(255,77,109,0.4)'; ctx.fill();
+    if (sv.confirmed) {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px system-ui'; ctx.fillText(String(sv.id), px, py);
+      ctx.fillStyle = '#ff4d6d'; ctx.font = 'bold 13px system-ui'; ctx.fillText(sv.cell, px, py - 16);
+    }
+  }
+  // drone
+  if (S.pose) {
+    const [px, py] = P(S.pose.x, S.pose.y), yaw = S.pose.yaw;
+    const dir = [-Math.sin(yaw), -Math.cos(yaw)], nrm = [-dir[1], dir[0]];
+    ctx.fillStyle = '#58a6ff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(px + dir[0] * 14, py + dir[1] * 14);
+    ctx.lineTo(px - dir[0] * 8 + nrm[0] * 8, py - dir[1] * 8 + nrm[1] * 8);
+    ctx.lineTo(px - dir[0] * 8 - nrm[0] * 8, py - dir[1] * 8 - nrm[1] * 8);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+
+function updatePanel() {
+  const st = S.status || {}, state = st.state || 'NO LINK';
+  const pill = $('state'); pill.textContent = st.complete && state === 'DONE' ? 'MISSION COMPLETE' : state;
+  pill.className = 'pill ' + ({ EXPLORE: 'ok', RETURN: 'warn', DONE: 'ok', LANDING: 'warn', ABORTED: 'bad', TAKEOFF: 'ok' }[state] || '');
+  $('elapsed').textContent = fmtTime(st.elapsed || 0);
+  $('mode').textContent = (st.fcu_connected ? (st.mode || '?') : 'FCU?') + (st.armed ? ' / ARMED' : '');
+  $('batt').textContent = st.battery == null ? '--' : Math.round(st.battery * 100) + '%';
+  $('slam').textContent = S.slam_ok ? 'OK' : 'LOST'; $('slam').style.color = S.slam_ok ? 'var(--ok)' : 'var(--bad)';
+  $('explored').textContent = st.explored_m2 ?? 0;
+  $('msg').textContent = st.msg || '';
+  const conf = S.survivors.filter((v) => v.confirmed);
+  $('nsurv').textContent = conf.length;
+  $('survBody').innerHTML = conf.length ? conf.map((v) =>
+    `<tr><td>${v.id}</td><td class="cell">${v.cell}</td><td>${v.x.toFixed(1)}, ${v.y.toFixed(1)}</td><td>${v.conf.toFixed(2)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="kv">none yet</td></tr>';
+  $('btnStart').disabled = !['IDLE', 'ABORTED'].includes(state);
+  $('btnRecall').disabled = state !== 'EXPLORE';
+}
+
+async function poll() {
+  try {
+    S = await (await fetch('/api/state')).json();
+    updatePanel();
+    if (S.map && S.map.seq !== mapSeq) {
+      const img = new Image(), seq = S.map.seq;
+      img.onload = () => { mapImg = img; mapSeq = seq; draw(); };
+      img.src = '/map.png?seq=' + seq;
+    }
+    draw();
+  } catch (e) {
+    $('state').textContent = 'NO LINK'; $('state').className = 'pill bad';
+  }
+  setTimeout(poll, 250);
+}
+window.addEventListener('resize', draw);
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Simulation overrides (applied after airmouse.yaml). Arena values come from the maze generator.
+/**:
+  ros__parameters:
+    floor_z: -0.19
+
+pose_bridge:
+  ros__parameters:
+    # must match LIDAR_POSE in airmouse_sim/drone_model.py
+    lidar_mount_xyz: [0.0, 0.0, -0.06]
+    lidar_mount_rpy: [3.14159265, 0.0, 0.0]
+
+survivor_detector:
+  ros__parameters:
+    # must match CAMERA_POSE in airmouse_sim/drone_model.py
+    camera_mount_xyz: [0.15, 0.0, 0.02]
+    camera_pitch: 0.26
+    camera_hfov: 1.57

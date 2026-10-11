@@ -1,0 +1,89 @@
+# AirMouse parameters for the REAL drone. config/sim.yaml overrides these in simulation.
+# Values marked MEASURE must be measured on your airframe.
+
+/**:
+  ros__parameters:
+    map_frame: map
+    # map z of the floor = -(height of base_link above the floor when sitting on the launch pad). MEASURE
+    floor_z: -0.15
+    # Rescue grid. map frame = drone at start, +x into the maze, +y left. See airmouse/arena.py.
+    # Set on the day from the launch-box position (distance to entry wall, offset to its left corner).
+    arena:
+      origin_x: 1.0      # m from the drone's start to the entry wall (forward)
+      origin_y: 7.5      # m from the drone's start to the arena's left edge
+      cell_size: 1.0
+      cols: 15
+      rows: 15
+
+pose_bridge:
+  ros__parameters:
+    # Pose of the Mid-360 (its IMU frame) in base_link. Upside-down under the frame = roll pi. MEASURE
+    lidar_mount_xyz: [0.0, 0.0, -0.08]
+    lidar_mount_rpy: [3.14159265, 0.0, 0.0]
+    odom_in: /Odometry
+    cloud_in: /cloud_registered
+    stale_timeout_s: 0.5
+    max_plausible_speed: 4.0
+
+mapper:
+  ros__parameters:
+    resolution: 0.05
+    margin: 2.0
+    band_min: 0.35        # m above floor - ignore floor / low debris
+    band_max: 2.1         # m above floor - ignore the ceiling net (2.44 m)
+    min_range: 0.4
+    max_range: 10.0
+    angular_bins: 720
+    publish_rate: 2.0
+
+commander:
+  ros__parameters:
+    takeoff_alt: 1.2
+    waypoint_tolerance: 0.25
+    inflation_radius: 0.30      # half drone width (incl. guards) + margin; corridors are 1 m
+    plan_resolution: 0.10
+    max_segment_length: 3.0
+    min_frontier_size: 0.4
+    goal_reach_radius: 0.6
+    visited_radius: 0.8
+    frontier_size_gain: 1.0
+    goal_switch_margin: 1.5
+    goal_timeout_s: 40.0
+    spin_at_goals: true          # 360 deg yaw sweep at each frontier so the camera sees the room
+    spin_dwell_s: 1.0
+    max_explore_time_s: 1260.0   # 21 min, then go home (30 min limit)
+    hard_time_limit_s: 1680.0    # 28 min, land wherever we are
+    battery_return_fraction: 0.30
+    battery_land_fraction: 0.18
+    slam_loss_grace_s: 1.0
+    fence_margin: 1.5
+    exit_xy: [0.0, 0.0]          # entry == exit == launch box
+    ekf_origin_lla: [12.9716, 77.5946, 900.0]   # any fixed value; only lets ArduPilot/MP show a map
+    use_fcu_offset: true
+    auto_start: false
+
+survivor_detector:
+  ros__parameters:
+    backend: ultralytics         # or "hog" (no deps, weak)
+    model: /opt/models/yolo11n.pt   # on the Pi export to NCNN: /opt/models/yolo11n_ncnn_model
+    confidence: 0.45
+    imgsz: 416
+    detect_rate_hz: 4.0
+    image_topic: /camera/image_raw
+    camera_info_topic: /camera/camera_info
+    camera_mount_xyz: [0.12, 0.0, 0.03]   # MEASURE
+    camera_pitch: 0.26                    # rad, positive = tilted down. MEASURE
+    camera_hfov: 1.57                     # used only if camera_info is not calibrated
+    max_range: 6.0
+    merge_radius: 1.0
+    confirm_hits: 3
+    min_box_px: 20
+
+gcs_server:
+  ros__parameters:
+    port: 8080
+    bind: 0.0.0.0
+    jpeg_quality: 70
+    video_max_fps: 15.0
+    video_width: 640
+    image_topic: /camera/image_raw

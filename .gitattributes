@@ -1,0 +1,7 @@
+# Keep LF endings everywhere: bash scripts and Python break inside Linux containers with CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pt binary
+*.onnx binary
+*.bin binary

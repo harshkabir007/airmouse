@@ -1,0 +1,62 @@
+# docker compose services for AirMouse.
+#   Laptop (simulation):   docker compose up -d sim   &&   docker compose exec sim bash
+#   Raspberry Pi 5 (drone): docker compose up -d robot &&  docker compose exec robot bash
+# GPU / WSL extras live in docker/compose.wsl.yaml and docker/compose.nvidia.yaml.
+name: airmouse
+
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: sim
+    image: airmouse:sim
+    command: sleep infinity
+    init: true
+    ports:
+      - "8080:8080"       # web GCS  -> http://localhost:8080
+      - "5762:5762"       # Mission Planner -> TCP 127.0.0.1:5762 (SITL SERIAL1)
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
+      - DISPLAY=${DISPLAY:-:0}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
+      - PULSE_SERVER=${PULSE_SERVER:-}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - .:/airmouse
+      - ./ros2_ws/src:/ws/src
+      - ws_build:/ws/build
+      - ws_install:/ws/install
+      - ws_log:/ws/log
+      - gz_cache:/root/.gz          # Gazebo Fuel models (survivor meshes) survive restarts
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    shm_size: 1gb
+
+  robot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: robot
+    image: airmouse:robot
+    command: sleep infinity
+    init: true
+    network_mode: host               # Livox UDP + web GCS + MAVLink to the laptop
+    privileged: true                 # /dev/ttyAMA0 (flight controller), /dev/video*
+    restart: unless-stopped
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
+    volumes:
+      - .:/airmouse
+      - ./ros2_ws/src:/ws/src
+      - ws_build:/ws/build
+      - ws_install:/ws/install
+      - ws_log:/ws/log
+      - /dev:/dev
+      - ./logs:/airmouse_logs
+
+volumes:
+  ws_build:
+  ws_install:
+  ws_log:
+  gz_cache:

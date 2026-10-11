@@ -1,0 +1,15 @@
+# Native Linux laptop with an NVIDIA GPU (needs nvidia-container-toolkit).
+#   xhost +local:docker
+#   docker compose -f compose.yaml -f docker/compose.nvidia.yaml up -d sim
+services:
+  sim:
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -1,0 +1,22 @@
+# colcon
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# models / runtime artefacts
+*.pt
+*.onnx
+*_ncnn_model/
+eeprom.bin
+logs/
+bags/
+
+# editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
