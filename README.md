@@ -12,6 +12,7 @@ An autonomous indoor drone that enters a maze with no GPS, maps it in 2D, finds 
 | GCS | Web dashboard served by the drone (`:8080`), plus Mission Planner over MAVLink |
 
 The full plan, architecture and test strategy are in **[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)**.
+For an overview, current status and step-by-step setup in one document, see **[docs/AirMouse_Project_Documentation.pdf](docs/AirMouse_Project_Documentation.pdf)** (rebuild it with `python3 docs/build_pdf.py`).
 
 ## Repository layout
 
