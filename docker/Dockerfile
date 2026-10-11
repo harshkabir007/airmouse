@@ -70,7 +70,8 @@ FROM base AS robot
 ######################################################################
 FROM base AS sim
 ARG ROS_DISTRO
-ARG ARDUPILOT_REF=Copter-4.6
+# ArduPilot publishes releases as tags (Copter-x.y.z); keep in sync with the real FC firmware
+ARG ARDUPILOT_REF=Copter-4.6.3
 ENV GZ_VERSION=harmonic
 
 # Gazebo Harmonic through the ROS vendor packages (official Jazzy pairing)

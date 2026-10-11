@@ -15,6 +15,7 @@ __pycache__/
 eeprom.bin
 logs/
 bags/
+*.log
 
 # editors
 .vscode/*

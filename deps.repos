@@ -1,12 +1,11 @@
 # Third-party ROS 2 packages, built into /opt/airmouse_deps by scripts/build_deps.sh.
-# After the first successful build, pin exact commits for reproducibility:
-#   vcs export --exact /opt/airmouse_deps/src > deps.repos
+# Pinned to exact commits: build_deps.sh patches these sources, so bump them deliberately.
 repositories:
   livox_ros_driver2:
     type: git
     url: https://github.com/Livox-SDK/livox_ros_driver2.git
-    version: master
+    version: 21445540f0d100dc86a7e6df312dd70bbdb4afdf   # master, "Support Mid360L Lidar"
   FAST_LIO:
     type: git
     url: https://github.com/hku-mars/FAST_LIO.git
-    version: ROS2
+    version: a4743b095409588842a5b30ddfa27e29d2f99164   # ROS2 branch
