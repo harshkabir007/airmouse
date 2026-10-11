@@ -37,6 +37,9 @@ class Mapper(Node):
         self.l_hit = float(declare(self, 'log_odds_hit', 0.85))
         self.l_miss = float(declare(self, 'log_odds_miss', -0.4))
         self.l_min, self.l_max = -2.0, 3.5
+        # Cells hit this often are locked as walls: grazing rays past thin wall corners would
+        # otherwise slowly "clear" them and the planner would cut the corner.
+        self.l_lock = float(declare(self, 'log_odds_lock', 2.5))
         self.occ_t = float(declare(self, 'occupied_threshold', 0.6))
         self.free_t = float(declare(self, 'free_threshold', -0.4))
         rate = float(declare(self, 'publish_rate', 2.0))
@@ -100,6 +103,7 @@ class Mapper(Node):
         free = np.setdiff1d(self._index(fx, fy), hits, assume_unique=True)
 
         flat = self.L.reshape(-1)
+        free = free[flat[free] < self.l_lock]
         flat[free] += self.l_miss
         flat[hits] += self.l_hit
         np.clip(self.L, self.l_min, self.l_max, out=self.L)

@@ -37,6 +37,6 @@ BATT_FS_CRT_ACT 1
 FENCE_ENABLE 1
 FENCE_TYPE 3
 FENCE_ALT_MAX 2.2
-FENCE_RADIUS 20
+FENCE_RADIUS 30      # sim maze is scaled 1.3x (see sim.launch.py maze_scale)
 FENCE_ACTION 2
 FENCE_MARGIN 0.5

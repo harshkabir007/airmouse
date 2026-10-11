@@ -53,6 +53,7 @@ class Commander(Node):
         self.map_frame = declare(self, 'map_frame', 'map')
         self.takeoff_alt = float(declare(self, 'takeoff_alt', 1.2))
         self.wp_tol = float(declare(self, 'waypoint_tolerance', 0.25))
+        self.lookahead = float(declare(self, 'carrot_lookahead', 0.6))
         self.inflation = float(declare(self, 'inflation_radius', 0.30))
         self.plan_res = float(declare(self, 'plan_resolution', 0.10))
         self.max_segment = float(declare(self, 'max_segment_length', 3.0))
@@ -97,6 +98,7 @@ class Commander(Node):
         self.setpoint = None        # (x, y, z, yaw)
         self.waypoints = []
         self.hold_xy = None         # where to hover while turning on the spot
+        self.seg_start = (0.0, 0.0)  # start of the path segment being followed
         self.goal = None
         self.visited = []
         self.spin_targets = []
@@ -260,6 +262,9 @@ class Commander(Node):
             self._publish_status(now)
 
     def _check_failsafes(self, now):
+        if not self.mav_state.armed and now - self.mission_t0 > 5.0:
+            self._set_state(S.ABORTED, 'FCU disarmed in flight (crash check or kill switch)')
+            return
         if self.mav_state.mode and self.mav_state.mode != 'GUIDED' and now - self.state_since > 3.0:
             self._set_state(S.ABORTED, f'FC switched to {self.mav_state.mode} - autonomy stopped')
             return
@@ -360,13 +365,22 @@ class Commander(Node):
         if self.waypoints:
             wx, wy = self.waypoints[0]
             if math.hypot(wx - x, wy - y) < self.wp_tol:
-                self.waypoints.pop(0)
+                self.seg_start = self.waypoints.pop(0)
                 if not self.waypoints:
                     self._goal_reached()
                     return
                 wx, wy = self.waypoints[0]
-            d = math.hypot(wx - x, wy - y)
-            desired = math.atan2(wy - y, wx - x) if d > 0.3 else self.setpoint[3]
+            # Carrot following: aim a short distance ahead along the planned segment so the
+            # drone is pulled back onto the (collision-checked) line instead of cutting corners.
+            ax, ay = self.seg_start
+            sx, sy = wx - ax, wy - ay
+            seg2 = sx * sx + sy * sy
+            t = 0.0 if seg2 < 1e-6 else min(1.0, max(0.0, ((x - ax) * sx + (y - ay) * sy) / seg2))
+            px, py = ax + t * sx, ay + t * sy
+            rem = math.hypot(wx - px, wy - py)
+            k = min(self.lookahead, rem) / rem if rem > 1e-6 else 1.0
+            cx, cy = px + (wx - px) * k, py + (wy - py) * k
+            desired = math.atan2(sy, sx) if seg2 > 0.09 else self.setpoint[3]
             if self._clearance(x, y) >= self.turn_clearance:
                 new_yaw = self._ramp_yaw(desired)
                 if abs(wrap_angle(desired - yaw)) > self.turn_in_place:
@@ -378,7 +392,7 @@ class Commander(Node):
             else:
                 new_yaw = self.setpoint[3]   # too tight to rotate safely: translate without yawing
             self.hold_xy = None
-            self.setpoint = (wx, wy, self.cruise_z, new_yaw)
+            self.setpoint = (cx, cy, self.cruise_z, new_yaw)
         if self.state == S.EXPLORE and self.goal and now - self.goal['t0'] > self.goal_timeout:
             self.get_logger().warn('goal timeout - blacklisting frontier')
             self.visited.append(self.goal['centroid'])
@@ -461,6 +475,7 @@ class Commander(Node):
             return
         pts = planning.simplify(path, g.trav, max(2, int(self.max_segment / g.res)))
         self.waypoints = [g.world(c) for c in pts[1:]]
+        self.seg_start = g.world(start)   # nearest safe cell: the carrot pulls the drone back to it
         if not self.waypoints:
             self._goal_reached()
         self._publish_path(g.world(start))

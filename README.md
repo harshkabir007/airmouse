@@ -39,8 +39,10 @@ You need Docker. The images are about 8–10 GB, and the first build takes 30–
 
 ### Windows 11
 1. Install WSL2 with Ubuntu 24.04: `wsl --install -d Ubuntu-24.04` (in an admin PowerShell), then reboot.
-2. Install **Docker Desktop**. Enable *Settings → Resources → WSL integration → Ubuntu-24.04*.
-3. Open the **Ubuntu** terminal. Clone the repo **inside the Linux filesystem**, not under `/mnt/c/...` or OneDrive, because a Windows path makes builds slow and breaks symlinks:
+2. Install Docker **inside Ubuntu** (Docker Engine, free, what this project was tested with): run `curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER`, then reopen the terminal. Docker Desktop with WSL integration also works.
+3. Give WSL enough memory for the builds: create `C:\Users\<you>\.wslconfig` containing `[wsl2]`, `memory=10GB` and `swap=8GB` on separate lines, then run `wsl --shutdown`.
+4. Keep an Ubuntu terminal open while the sim runs. WSL stops the distro, and the container with it, when no WSL window is attached.
+5. Open the **Ubuntu** terminal. Clone the repo **inside the Linux filesystem**, not under `/mnt/c/...` or OneDrive, because a Windows path makes builds slow and breaks symlinks:
    ```bash
    cd ~ && git clone <your-repo-url> airmouse && cd airmouse
    docker compose build sim
@@ -64,6 +66,8 @@ am-sim                            # Gazebo + ArduPilot SITL + FAST-LIO + MAVROS 
 - Open **http://localhost:8080** and press **START**. The drone takes off, explores, tags survivors, and lands at the exit.
 - Optional: in Mission Planner on the host, connect with **TCP, 127.0.0.1, port 5762**.
 - Headless (no Gazebo window): `ros2 launch airmouse_bringup sim.launch.py headless:=true`
+- **The sim maze is scaled 1.3× by default** (1.3 m corridors). The stand-in SITL "iris" quad is about 1.5× wider than the real ≤ 45 cm airframe, so the scaling keeps the same drone-to-corridor ratio. Use `maze_scale:=1.0` for exact competition dimensions.
+- On a laptop without a strong GPU the sim runs at about 0.7× real time. That is expected, and every node runs on sim time.
 - Other mazes: draw a layout (see `ros2_ws/src/airmouse_sim/mazes/maze_01.txt`), then `am-sim maze:=/airmouse/my_maze.txt`
 - VS Code: *Dev Containers: Reopen in Container* uses the same `sim` service.
 

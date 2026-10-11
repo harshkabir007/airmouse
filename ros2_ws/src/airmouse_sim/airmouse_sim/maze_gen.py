@@ -2,7 +2,7 @@
 """ASCII maze layout -> Gazebo Harmonic world + matching arena-grid parameters.
 
 World frame == AirMouse map frame: the drone starts at the origin facing +x
-(up the page in the layout), +y is left. One layout character is 0.5 m.
+(up the page in the layout), +y is left. One layout character is 0.5 m x scale.
 
 CLI:  ros2 run airmouse_sim gen_maze mazes/maze_01.txt -o /tmp/maze_01.sdf
 """
@@ -10,9 +10,9 @@ import argparse
 import math
 import random
 
-CELL = 0.5
+BASE_CELL = 0.5             # metres per layout character at scale 1
 WALL_HEIGHT = 2.44          # 8 ft, per the NIDAR brief
-GRID_CELL = 1.0             # rescue-grid cell size reported to the GCS
+BASE_GRID_CELL = 1.0        # rescue-grid cell size at scale 1
 FUEL = 'https://fuel.gazebosim.org/1.0/OpenRobotics/models/'
 SURVIVOR_MODELS = {
     'P': FUEL + 'Standing person',
@@ -50,8 +50,14 @@ def wall_rectangles(rows):
     return rects
 
 
-def generate(text, name='maze', seed=0, ceiling=False):
-    """Returns (world_sdf, arena_params, survivors) for a layout string."""
+def generate(text, name='maze', seed=0, ceiling=False, scale=1.0):
+    """Returns (world_sdf, arena_params, survivors) for a layout string.
+
+    `scale` multiplies all horizontal dimensions (corridors, rooms, wall thickness and the
+    rescue grid); wall height is unchanged. Use it to keep a stand-in sim vehicle in the
+    same size ratio to the corridors as the real drone."""
+    CELL = BASE_CELL * scale
+    GRID_CELL = BASE_GRID_CELL * scale
     rows = parse_layout(text)
     starts = [(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == 'S']
     walls = [(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == '#']
@@ -183,9 +189,10 @@ def main():
     ap.add_argument('-o', '--output', default='maze.sdf')
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--ceiling', action='store_true')
+    ap.add_argument('--scale', type=float, default=1.0, help='horizontal scale (1.0 = 1 m corridors)')
     args = ap.parse_args()
     with open(args.layout) as f:
-        world, arena, survivors = generate(f.read(), seed=args.seed, ceiling=args.ceiling)
+        world, arena, survivors = generate(f.read(), seed=args.seed, ceiling=args.ceiling, scale=args.scale)
     with open(args.output, 'w') as f:
         f.write(world)
     print(f'wrote {args.output}')

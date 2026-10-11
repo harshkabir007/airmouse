@@ -4,6 +4,7 @@ Gazebo Harmonic (maze + drone) + ArduPilot SITL + ros_gz bridge + AirMouse core.
 
   ros2 launch airmouse_bringup sim.launch.py                 # default maze_01
   ros2 launch airmouse_bringup sim.launch.py maze:=/path/to/layout.txt headless:=true
+  ros2 launch airmouse_bringup sim.launch.py maze_scale:=1.0     # exact 1 m corridors
 
 Then open http://localhost:8080 and press START.
 Mission Planner (optional): connect TCP 127.0.0.1 port 5762.
@@ -26,6 +27,7 @@ def _setup(context):
     maze = LaunchConfiguration('maze').perform(context)
     headless = LaunchConfiguration('headless').perform(context).lower() == 'true'
     home = LaunchConfiguration('sitl_home').perform(context)
+    scale = float(LaunchConfiguration('maze_scale').perform(context))
     sim_share = get_package_share_directory('airmouse_sim')
     bringup_share = get_package_share_directory('airmouse_bringup')
     out = os.path.join(tempfile.gettempdir(), 'airmouse')
@@ -41,7 +43,7 @@ def _setup(context):
     layout = maze if os.path.isfile(maze) else os.path.join(sim_share, 'mazes', f'{maze}.txt')
     name = os.path.splitext(os.path.basename(layout))[0]
     with open(layout) as f:
-        world_sdf, arena, survivors = maze_gen.generate(f.read(), name=name)
+        world_sdf, arena, survivors = maze_gen.generate(f.read(), name=name, scale=scale)
     world = os.path.join(out, f'{name}.sdf')
     with open(world, 'w') as f:
         f.write(world_sdf)
@@ -98,5 +100,9 @@ def generate_launch_description():
         DeclareLaunchArgument('maze', default_value='maze_01', description='layout name or path to .txt'),
         DeclareLaunchArgument('headless', default_value='false', description='true = no Gazebo GUI'),
         DeclareLaunchArgument('sitl_home', default_value='12.9716,77.5946,900,0'),
+        # The SITL iris (0.38 m prop-tip radius) is ~1.5x the real airframe. Scaling the maze
+        # by 1.3 keeps the vehicle/corridor ratio of a ~0.29 m-radius drone in 1 m corridors.
+        # maze_scale:=1.0 gives the exact competition dimensions.
+        DeclareLaunchArgument('maze_scale', default_value='1.3'),
         OpaqueFunction(function=_setup),
     ])

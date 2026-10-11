@@ -38,6 +38,7 @@ mapper:
 
 commander:
   ros__parameters:
+    carrot_lookahead: 0.6        # m ahead along the planned segment (keeps the drone on the line)
     takeoff_alt: 1.2
     waypoint_tolerance: 0.25
     inflation_radius: 0.30      # half drone width (incl. guards) + margin; corridors are 1 m

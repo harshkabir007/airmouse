@@ -171,6 +171,7 @@ class SurvivorDetector(Node):
         else:
             self.tracks.append({'id': None, 'x': float(p[0]), 'y': float(p[1]), 'z': float(p[2]),
                                 'hits': 1, 'conf': conf, 'first': now, 'last': now, 'confirmed': False})
+        self._fuse_tracks()
         for tr in self.tracks:
             tr['cell'] = self.arena.label(tr['x'], tr['y'])
             if not tr['confirmed'] and tr['hits'] >= self.confirm_hits and tr['cell'] != 'OUT':
@@ -179,6 +180,35 @@ class SurvivorDetector(Node):
                 self.next_id += 1
                 self.get_logger().info(f"SURVIVOR {tr['id']} confirmed in cell {tr['cell']} "
                                        f"({tr['x']:.2f}, {tr['y']:.2f})")
+
+    def _fuse_tracks(self):
+        """Merge tracks whose estimates converged onto the same person (first sightings from
+        far away can land >merge_radius apart, then drift together as the drone gets closer)."""
+        def rank(t):   # keep confirmed tracks first (lowest id), then the most-observed one
+            return (not t['confirmed'], t['id'] if t['id'] is not None else 1 << 30, -t['hits'])
+
+        fused = True
+        while fused:
+            fused = False
+            for i, a in enumerate(self.tracks):
+                for b in self.tracks[i + 1:]:
+                    if math.hypot(a['x'] - b['x'], a['y'] - b['y']) >= self.merge_r:
+                        continue
+                    keep, drop = sorted((a, b), key=rank)
+                    n, m = keep['hits'], drop['hits']
+                    for k in ('x', 'y', 'z'):
+                        keep[k] = (keep[k] * n + drop[k] * m) / (n + m)
+                    keep['hits'] = n + m
+                    keep['conf'] = max(keep['conf'], drop['conf'])
+                    keep['first'] = min(keep['first'], drop['first'])
+                    keep['last'] = max(keep['last'], drop['last'])
+                    if drop['confirmed']:
+                        self.get_logger().warn(f"survivor {drop['id']} merged into {keep['id']} (duplicate)")
+                    self.tracks.remove(drop)
+                    fused = True
+                    break
+                if fused:
+                    break
 
     def _publish(self):
         out = [{'id': tr['id'], 'x': round(tr['x'], 2), 'y': round(tr['y'], 2), 'z': round(tr['z'], 2),

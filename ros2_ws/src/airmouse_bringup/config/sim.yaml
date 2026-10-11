@@ -12,10 +12,11 @@ pose_bridge:
 commander:
   ros__parameters:
     # The SITL iris is wider than the real AirMouse airframe: 0.35 m half-width across the
-    # arms, 0.38 m prop-tip radius. Plan at full map resolution so 1 m doors stay passable.
-    inflation_radius: 0.36
+    # arms, 0.38 m prop-tip radius. sim.launch.py scales the maze by maze_scale (default 1.3)
+    # to compensate; these values suit 1.3 m corridors. Plan at full map resolution.
+    inflation_radius: 0.42
     plan_resolution: 0.05
-    turn_clearance: 0.42
+    turn_clearance: 0.48
 
 survivor_detector:
   ros__parameters:

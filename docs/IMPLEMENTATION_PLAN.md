@@ -217,10 +217,29 @@ Record a rosbag of every real flight: `ros2 bag record /livox/lidar /livox/imu /
 
 ---
 
-## 10. Status of this repository (initial scaffold)
+## 10. Status
 
-This repository was **written, not yet run**. Nothing has been built or tested yet. Expect to fix small issues during Phase 0–1, especially:
-- FAST-LIO and livox_ros_driver2 compiling on ROS 2 Jazzy / GCC 13 (`scripts/build_deps.sh`). If it fails, try a Jazzy-ready fork of FAST-LIO.
-- `airmouse_sim/drone_model.py` injects sensors into `iris_with_ardupilot`. Check that the sensor links attach to the correct parent link in your ardupilot_gazebo version.
-- Fuel model names for survivors in `maze_gen.py`. The first download needs internet, after which they are cached.
-- ArduPilot parameter names that changed between versions (`GPS1_TYPE` vs `GPS_TYPE`).
+**Simulation (Phases 0–5, first pass): working end to end.** Tested on a Windows 11 laptop (WSL2, Intel Iris Xe, 16 GB RAM) with `maze_01` at the default 1.3× scale:
+- START → GUIDED → arm → take-off → frontier exploration of the whole maze → return → landing at the exit, all autonomous, in **13.5 min** (budget 30 min).
+- The live 2D map clearly shows all 16 rooms, the corridors and the entrance.
+- **5 of 6 survivors** were tagged in the correct grid cell, each within about 0.3 m of ground truth. A previous run tagged all 6 but crashed on the way back.
+
+Lessons learned during bring-up, all fixed in the code:
+
+| Problem | Fix |
+|---|---|
+| Gazebo LiDAR reports misses as `inf`, which breaks FAST-LIO | `airmouse_sim/lidar_filter` drops them |
+| No per-point time in Gazebo clouds, so FAST-LIO's azimuth heuristic stalls odometry | `lidar_filter` writes exact capture times |
+| Iris collides in 1 m doors (it is about 1.5× the real airframe) | Sim maze scaled 1.3×, iris-sized inflation |
+| Fake frontiers on wall faces and door jambs | Frontier cells must not touch walls |
+| Fast 90° yaw in doorways causes drift and collision | Ramped yaw, turn-in-place only where clearance allows |
+| Grazing rays erase thin wall corners, so the planner cuts corners | Occupancy lock for confirmed wall cells |
+| Drone tracks off the planned line through doors | Carrot-following along the planned segment |
+| Duplicate tags for one survivor | Track fusion |
+| D3D12 rendering in WSL is slow (RTF 0.1) | llvmpipe software rendering (RTF 0.7) |
+
+Known open items (next sim work):
+- One survivor room was skipped after a frontier goal timed out. Tune `goal_timeout_s` and the visited/blacklist logic so rooms are retried.
+- Exploration revisits areas, so 13.5 min can be cut a lot. Ideas: prefer the nearest frontier along the current heading, skip spins in rooms already seen by the camera, and raise `WPNAV_SPEED` once stable.
+- Add a batch script that runs N headless missions on several layouts and scores them (coverage, survivors, time, crashes).
+- Hardware phases (6–8) have not started.

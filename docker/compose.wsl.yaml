@@ -1,5 +1,10 @@
-# Windows 11 (WSL2 + WSLg) override: GUI windows + GPU-accelerated rendering for Gazebo.
+# Windows 11 (WSL2 + WSLg) override: Gazebo GUI windows through WSLg.
 #   docker compose -f compose.yaml -f docker/compose.wsl.yaml up -d sim
+#
+# Rendering: Mesa's llvmpipe (multi-core CPU) is used by default. On an Intel Iris Xe laptop
+# it ran the sensor-heavy sim ~5x faster (RTF ~0.7 vs ~0.1) than the D3D12 GPU path, whose
+# OpenGL 4.1 translation stalls on LiDAR/camera readbacks. With a strong discrete GPU try
+# GALLIUM_DRIVER=d3d12 instead.
 services:
   sim:
     devices:
@@ -9,7 +14,7 @@ services:
       - /usr/lib/wsl:/usr/lib/wsl:ro
     environment:
       - LD_LIBRARY_PATH=/usr/lib/wsl/lib
-      - GALLIUM_DRIVER=d3d12
+      - GALLIUM_DRIVER=llvmpipe
       - XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
       - WAYLAND_DISPLAY=wayland-0
       - PULSE_SERVER=/mnt/wslg/PulseServer
