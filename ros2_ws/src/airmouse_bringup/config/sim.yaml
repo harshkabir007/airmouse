@@ -9,6 +9,14 @@ pose_bridge:
     lidar_mount_xyz: [0.0, 0.0, -0.06]
     lidar_mount_rpy: [3.14159265, 0.0, 0.0]
 
+commander:
+  ros__parameters:
+    # The SITL iris is wider than the real AirMouse airframe: 0.35 m half-width across the
+    # arms, 0.38 m prop-tip radius. Plan at full map resolution so 1 m doors stay passable.
+    inflation_radius: 0.36
+    plan_resolution: 0.05
+    turn_clearance: 0.42
+
 survivor_detector:
   ros__parameters:
     # must match CAMERA_POSE in airmouse_sim/drone_model.py

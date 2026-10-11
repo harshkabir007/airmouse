@@ -47,6 +47,14 @@ class PlanGrid:
         r = int(math.ceil(inflation / self.res))
         blocked = ndimage.binary_dilation(self.occ, structure=disk(r)) if r > 0 else self.occ
         self.trav = self.free & ~blocked
+        # metres from each cell to the nearest occupied cell
+        self.clearance = ndimage.distance_transform_edt(~self.occ) * self.res
+
+    def clearance_at(self, x, y):
+        r, c = self.cell(x, y)
+        if 0 <= r < self.shape[0] and 0 <= c < self.shape[1]:
+            return float(self.clearance[r, c])
+        return 0.0
 
     def cell(self, x, y):
         return int(math.floor((y - self.oy) / self.res)), int(math.floor((x - self.ox) / self.res))
@@ -136,5 +144,10 @@ def simplify(path, trav, max_cells):
     return out
 
 
-def frontier_mask(free, unknown):
-    return free & ndimage.binary_dilation(unknown, structure=CROSS)
+def frontier_mask(free, unknown, occ, wall_gap=2):
+    """Free cells bordering unknown space, excluding cells within `wall_gap` cells of a wall.
+
+    The exclusion drops fake frontiers along wall faces (unseen wall interiors, door jambs)
+    while keeping real ones, e.g. the open end of a corridor."""
+    near_wall = ndimage.binary_dilation(occ, structure=SQUARE, iterations=wall_gap)
+    return free & ndimage.binary_dilation(unknown, structure=CROSS) & ~near_wall

@@ -64,6 +64,10 @@ class Commander(Node):
         self.goal_timeout = float(declare(self, 'goal_timeout_s', 40.0))
         self.spin_enabled = bool(declare(self, 'spin_at_goals', True))
         self.spin_dwell = float(declare(self, 'spin_dwell_s', 1.0))
+        # Yaw only where the whole rotor disc fits: clearance >= this (half prop-tip span + margin)
+        self.turn_clearance = float(declare(self, 'turn_clearance', 0.35))
+        self.max_yaw_rate = math.radians(float(declare(self, 'max_yaw_rate_deg', 45.0)))
+        self.turn_in_place = math.radians(float(declare(self, 'turn_in_place_deg', 45.0)))
         self.max_explore_s = float(declare(self, 'max_explore_time_s', 1260.0))
         self.hard_limit_s = float(declare(self, 'hard_time_limit_s', 1680.0))
         self.batt_return = float(declare(self, 'battery_return_fraction', 0.30))
@@ -87,10 +91,12 @@ class Commander(Node):
         self.slam_bad_since = None
         self.battery = None
         self.map_msg = None
+        self.grid = None            # last PlanGrid (for clearance lookups between plans)
         self.ground_z = 0.0
         self.cruise_z = self.takeoff_alt
         self.setpoint = None        # (x, y, z, yaw)
         self.waypoints = []
+        self.hold_xy = None         # where to hover while turning on the spot
         self.goal = None
         self.visited = []
         self.spin_targets = []
@@ -341,7 +347,7 @@ class Commander(Node):
         x, y, _, yaw = self.pose
         if self.spin_targets:
             target = self.spin_targets[0]
-            self.setpoint = (self.spin_xy[0], self.spin_xy[1], self.cruise_z, target)
+            self.setpoint = (self.spin_xy[0], self.spin_xy[1], self.cruise_z, self._ramp_yaw(target))
             if abs(wrap_angle(yaw - target)) < math.radians(15):
                 if self.spin_t is None:
                     self.spin_t = now
@@ -360,8 +366,19 @@ class Commander(Node):
                     return
                 wx, wy = self.waypoints[0]
             d = math.hypot(wx - x, wy - y)
-            heading = math.atan2(wy - y, wx - x) if d > 0.3 else self.setpoint[3]
-            self.setpoint = (wx, wy, self.cruise_z, heading)
+            desired = math.atan2(wy - y, wx - x) if d > 0.3 else self.setpoint[3]
+            if self._clearance(x, y) >= self.turn_clearance:
+                new_yaw = self._ramp_yaw(desired)
+                if abs(wrap_angle(desired - yaw)) > self.turn_in_place:
+                    # big heading change: rotate on the spot first, then translate
+                    if self.hold_xy is None:
+                        self.hold_xy = (x, y)
+                    self.setpoint = (self.hold_xy[0], self.hold_xy[1], self.cruise_z, new_yaw)
+                    return
+            else:
+                new_yaw = self.setpoint[3]   # too tight to rotate safely: translate without yawing
+            self.hold_xy = None
+            self.setpoint = (wx, wy, self.cruise_z, new_yaw)
         if self.state == S.EXPLORE and self.goal and now - self.goal['t0'] > self.goal_timeout:
             self.get_logger().warn('goal timeout - blacklisting frontier')
             self.visited.append(self.goal['centroid'])
@@ -377,12 +394,21 @@ class Commander(Node):
         if self.goal:
             self.visited.append(self.goal['centroid'])
             self.goal = None
-        if self.spin_enabled:
+        if self.spin_enabled and self._clearance(x, y) >= self.turn_clearance:
             self.spin_xy = (x, y)
             self.spin_targets = [wrap_angle(yaw + k * math.pi / 2) for k in range(1, 5)]
             self.spin_t = None
         else:
             self._plan()
+
+    def _clearance(self, x, y):
+        return self.grid.clearance_at(x, y) if self.grid is not None else 0.0
+
+    def _ramp_yaw(self, target, dt=0.1):
+        """Step the commanded yaw toward target at max_yaw_rate (big yaw steps make the drone drift)."""
+        cur = self.setpoint[3]
+        step = self.max_yaw_rate * dt
+        return wrap_angle(cur + float(np.clip(wrap_angle(target - cur), -step, step)))
 
     def _publish_setpoint(self):
         x, y, z, yaw = self.setpoint
@@ -406,6 +432,7 @@ class Commander(Node):
         ex, ey = self.exit_xy
         crop = (min(xmin, ex, x) - 1.0, max(xmax, ex, x) + 1.0, min(ymin, ey, y) - 1.0, max(ymax, ey, y) + 1.0)
         g = planning.PlanGrid(self.map_msg, self.plan_res, self.inflation, crop)
+        self.grid = g
         search = int(math.ceil(0.6 / g.res))
         start = planning.nearest_true(g.trav, g.cell(x, y), search)
         if start is None:
@@ -443,7 +470,7 @@ class Commander(Node):
         xs, ys = g.centers()
         inside = ((ys >= ymin) & (ys <= ymax))[:, None] & ((xs >= xmin) & (xs <= xmax))[None, :]
         self.explored_m2 = float((g.free & inside).sum()) * g.res * g.res
-        fr = planning.frontier_mask(g.free, g.unknown) & inside
+        fr = planning.frontier_mask(g.free, g.unknown, g.occ, max(1, int(math.ceil(0.15 / g.res)))) & inside
         labels, n = ndimage.label(fr, structure=planning.SQUARE)
         self.frontiers = n
         if n == 0:

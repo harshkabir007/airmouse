@@ -1,4 +1,4 @@
-"""Builds model://airmouse = ArduPilot's iris_with_ardupilot + AirMouse sensors.
+"""Builds model://airmouse_drone = ArduPilot's iris_with_ardupilot + AirMouse sensors.
 
 The iris model is copied from ardupilot_gazebo at launch time and the sensors are
 injected, so the ArduPilot plugin config always matches the installed plugin version.
@@ -7,11 +7,14 @@ Sensors mimic the real payload:
   * Livox Mid-360-like LiDAR, mounted UPSIDE-DOWN under the frame
     (360 deg x [-7, +52] deg -> after inversion it sees the floor and walls), 10 Hz
   * IMU on the same link (the Mid-360 has a built-in IMU), 200 Hz
-  * forward camera tilted 15 deg down, 640x480 @ 15 Hz
+  * forward camera tilted 15 deg down, 640x480 @ 10 Hz
+LiDAR is 360 x 32 beams (a laptop iGPU struggles with more while keeping real time).
 """
 import os
 import xml.etree.ElementTree as ET
 
+# Not "airmouse": Gazebo would resolve model://airmouse to the repo mounted at /airmouse.
+MODEL_NAME = 'airmouse_drone'
 LIDAR_POSE = '0 0 -0.06 3.14159265 0 0'     # keep in sync with config/sim.yaml (lidar_mount_*)
 CAMERA_POSE = '0.15 0 0.02 0 0.26 0'        # keep in sync with config/sim.yaml (camera_mount_*)
 
@@ -33,7 +36,7 @@ SENSORS = """<root>
     <visualize>false</visualize>
     <lidar>
       <scan>
-        <horizontal><samples>720</samples><resolution>1</resolution>
+        <horizontal><samples>360</samples><resolution>1</resolution>
           <min_angle>-3.14159</min_angle><max_angle>3.14159</max_angle></horizontal>
         <vertical><samples>32</samples><resolution>1</resolution>
           <min_angle>-0.1222</min_angle><max_angle>0.9076</max_angle></vertical>
@@ -58,7 +61,7 @@ SENSORS = """<root>
   <sensor name="camera" type="camera">
     <gz_frame_id>camera_link</gz_frame_id>
     <topic>camera/image</topic>
-    <update_rate>15</update_rate>
+    <update_rate>10</update_rate>
     <always_on>1</always_on>
     <camera>
       <horizontal_fov>1.57</horizontal_fov>
@@ -72,7 +75,7 @@ SENSORS = """<root>
 
 MODEL_CONFIG = """<?xml version="1.0"?>
 <model>
-  <name>airmouse</name>
+  <name>airmouse_drone</name>
   <version>1.0</version>
   <sdf version="1.9">model.sdf</sdf>
   <description>Iris (ArduPilot SITL) with Mid-360-like LiDAR, IMU and camera</description>
@@ -102,15 +105,15 @@ def _base_link_name(model):
 
 
 def build(out_models_dir, resource_paths):
-    """Writes <out_models_dir>/airmouse/{model.sdf, model.config}."""
+    """Writes <out_models_dir>/airmouse_drone/{model.sdf, model.config}."""
     tree = ET.parse(find_iris(resource_paths))
     model = tree.getroot().find('model')
-    model.set('name', 'airmouse')
+    model.set('name', MODEL_NAME)
     extra = ET.fromstring(SENSORS.format(parent=_base_link_name(model),
                                          lidar_pose=LIDAR_POSE, camera_pose=CAMERA_POSE))
     for el in list(extra):
         model.append(el)
-    out = os.path.join(out_models_dir, 'airmouse')
+    out = os.path.join(out_models_dir, MODEL_NAME)
     os.makedirs(out, exist_ok=True)
     tree.write(os.path.join(out, 'model.sdf'), xml_declaration=True, encoding='utf-8')
     with open(os.path.join(out, 'model.config'), 'w') as f:

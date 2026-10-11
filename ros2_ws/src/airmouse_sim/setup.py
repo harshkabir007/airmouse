@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'gen_maze = airmouse_sim.maze_gen:main',
+            'lidar_filter = airmouse_sim.lidar_filter_node:main',
         ],
     },
 )

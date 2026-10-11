@@ -158,7 +158,7 @@ def generate(text, name='maze', seed=0, ceiling=False):
 {surv_xml}
 
     <include>
-      <uri>model://airmouse</uri>
+      <uri>model://airmouse_drone</uri>
       <name>airmouse</name>
       <pose>0 0 0.195 0 0 0</pose>
     </include>

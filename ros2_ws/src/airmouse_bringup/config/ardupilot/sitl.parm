@@ -27,6 +27,7 @@ WPNAV_SPEED_UP 50
 WPNAV_SPEED_DN 40
 WPNAV_RADIUS 20
 ANGLE_MAX 2000
+ATC_SLEW_YAW 3000
 
 # --- Failsafes: always LAND, never RTL (a straight-line RTL would fly through walls) ---
 FS_EKF_ACTION 1

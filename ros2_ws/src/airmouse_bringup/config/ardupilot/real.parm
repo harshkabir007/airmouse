@@ -35,6 +35,7 @@ WPNAV_SPEED_UP 50
 WPNAV_SPEED_DN 40
 WPNAV_RADIUS 20
 ANGLE_MAX 2000
+ATC_SLEW_YAW 3000    # 30 deg/s max yaw slew: gentle turns in tight corridors
 LAND_SPEED 40
 
 # --- Failsafes: always LAND (never RTL) ---

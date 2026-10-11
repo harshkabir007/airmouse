@@ -75,8 +75,10 @@ def _setup(context):
     bridge = Node(package='ros_gz_bridge', executable='parameter_bridge', name='gz_bridge', output='screen',
                   parameters=[{'config_file': os.path.join(sim_share, 'config', 'gz_bridge.yaml'),
                                'use_sim_time': True}])
+    lidar_filter = Node(package='airmouse_sim', executable='lidar_filter', name='lidar_filter', output='screen',
+                        parameters=[{'use_sim_time': True}])
 
-    core = IncludeLaunchDescription(
+    core =IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(bringup_share, 'launch', 'core.launch.py')),
         launch_arguments={
             'use_sim_time': 'true',
@@ -87,7 +89,7 @@ def _setup(context):
             'gcs_url': '',
         }.items())
 
-    return [SetEnvironmentVariable('GZ_SIM_RESOURCE_PATH', gz_path), gz, bridge, sitl,
+    return [SetEnvironmentVariable('GZ_SIM_RESOURCE_PATH', gz_path), gz, bridge, lidar_filter, sitl,
             TimerAction(period=8.0, actions=[core])]
 
 

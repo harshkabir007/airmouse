@@ -51,6 +51,9 @@ commander:
     goal_timeout_s: 40.0
     spin_at_goals: true          # 360 deg yaw sweep at each frontier so the camera sees the room
     spin_dwell_s: 1.0
+    turn_clearance: 0.35         # only yaw where wall clearance >= prop-tip radius + margin. MEASURE
+    max_yaw_rate_deg: 45.0       # commanded yaw is ramped; large yaw steps make the drone drift
+    turn_in_place_deg: 45.0      # heading errors above this: rotate on the spot, then translate
     max_explore_time_s: 1260.0   # 21 min, then go home (30 min limit)
     hard_time_limit_s: 1680.0    # 28 min, land wherever we are
     battery_return_fraction: 0.30
